@@ -1,8 +1,10 @@
 import fs from 'fs';
 import path from 'path';
+import axios from 'axios';
 
 const commandRootDir = path.resolve('./plugins/commands');
 
+// Fonction pour récupérer les fichiers de commandes
 const fetchCommandFiles = () => {
     const commandFiles = [];
 
@@ -27,6 +29,7 @@ const fetchCommandFiles = () => {
     return commandFiles;
 };
 
+// Fonction pour charger une commande spécifique
 const loadCommand = async (filePath) => {
     try {
         const { default: commandModule } = await import(filePath);
@@ -42,33 +45,46 @@ const loadCommand = async (filePath) => {
     }
 };
 
+// Fonction pour appeler l'API Gemini
+async function fetchApiResponse(prompt) {
+    const response = await axios.post('https://gemini-sary-prompt-espa-vercel-api.vercel.app/api/gemini', {
+        prompt,
+        customId: 'yourCustomId' // Remplacez par votre ID personnalisé si nécessaire
+    });
+    return response.data; // Ajustez en fonction de la structure de votre réponse API
+}
+
+// Fonction de gestion des commandes
 async function onCall({ message }) {
-    const input = message.body.trim().toLowerCase();
+    const input = message.body.trim();
 
     const commandFiles = fetchCommandFiles();
+    let isCommand = false;
+
+    // Vérifiez si le message est une commande
     for (const { commands } of commandFiles) {
         for (const filePath of commands) {
             const commandData = await loadCommand(filePath);
             if (commandData && input.startsWith(commandData.name)) {
+                isCommand = true; // Message est une commande
                 const { commandModule, name } = commandData;
 
-                if (commandModule?.config && commandModule.onCall) {
+                if (commandModule?.onCall) {
                     const args = input.slice(name.length).trim().split(" ");
-                    const prefix = message.thread?.data?.prefix || global.config.PREFIX;
-
                     await commandModule.onCall({ 
                         message, 
-                        args, 
-                        data: { thread: { data: { prefix } } }, 
-                        userPermissions: message.senderID, 
-                        prefix 
+                        args 
                     });
-                } else {
-                    console.warn(`Command ${name} is not properly configured or missing onCall function.`);
                 }
-                return;
+                return; // Commande traitée, sort de la fonction
             }
         }
+    }
+
+    // Si ce n'est pas une commande, envoyez la réponse automatique
+    if (!isCommand) {
+        const apiResponse = await fetchApiResponse(input);
+        await message.reply(apiResponse);
     }
 
     console.warn('No matching command found.');

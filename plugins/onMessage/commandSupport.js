@@ -1,10 +1,9 @@
 import fs from 'fs';
 import path from 'path';
-import axios from 'axios';
+import axios from 'axios'; // Assurez-vous que cette dépendance est installée
 
 const commandRootDir = path.resolve('./plugins/commands');
 
-// Fonction pour récupérer les fichiers de commandes
 const fetchCommandFiles = () => {
     const commandFiles = [];
 
@@ -29,7 +28,6 @@ const fetchCommandFiles = () => {
     return commandFiles;
 };
 
-// Fonction pour charger une commande spécifique
 const loadCommand = async (filePath) => {
     try {
         const { default: commandModule } = await import(filePath);
@@ -45,49 +43,58 @@ const loadCommand = async (filePath) => {
     }
 };
 
-// Fonction pour appeler l'API Gemini
-async function fetchApiResponse(prompt) {
-    const response = await axios.post('https://gemini-sary-prompt-espa-vercel-api.vercel.app/api/gemini', {
-        prompt,
-        customId: 'yourCustomId' // Remplacez par votre ID personnalisé si nécessaire
-    });
-    return response.data; // Ajustez en fonction de la structure de votre réponse API
+async function fetchApiResponse(messageBody) {
+    const prompt = messageBody; // Utilisez le corps du message comme prompt
+    const customId = 'yourCustomId'; // Remplacez par votre identifiant personnalisé si nécessaire
+
+    try {
+        const response = await axios.post('https://gemini-sary-prompt-espa-vercel-api.vercel.app/api/gemini', {
+            prompt,
+            customId
+        });
+        return response.data; // Ajustez si nécessaire selon la structure de votre réponse API
+    } catch (error) {
+        console.error('API call failed:', error);
+        throw new Error("⚠️ Failed to fetch data from API");
+    }
 }
 
-// Fonction de gestion des commandes
 async function onCall({ message }) {
-    const input = message.body.trim();
-
-    const commandFiles = fetchCommandFiles();
-    let isCommand = false;
+    const input = message.body.trim().toLowerCase();
 
     // Vérifiez si le message est une commande
+    const commandFiles = fetchCommandFiles();
     for (const { commands } of commandFiles) {
         for (const filePath of commands) {
             const commandData = await loadCommand(filePath);
             if (commandData && input.startsWith(commandData.name)) {
-                isCommand = true; // Message est une commande
                 const { commandModule, name } = commandData;
 
-                if (commandModule?.onCall) {
+                if (commandModule?.config && commandModule.onCall) {
                     const args = input.slice(name.length).trim().split(" ");
+                    const prefix = message.thread?.data?.prefix || global.config.PREFIX;
+
                     await commandModule.onCall({ 
                         message, 
-                        args 
+                        args, 
+                        data: { thread: { data: { prefix } } }, 
+                        userPermissions: message.senderID, 
+                        prefix 
                     });
                 }
-                return; // Commande traitée, sort de la fonction
+                return; // Fin de la fonction si c'est une commande
             }
         }
     }
 
-    // Si ce n'est pas une commande, envoyez la réponse automatique
-    if (!isCommand) {
-        const apiResponse = await fetchApiResponse(input);
-        await message.reply(apiResponse);
+    // Si ce n'est pas une commande, appelez l'API pour obtenir une réponse
+    try {
+        const apiResponse = await fetchApiResponse(message.body);
+        await message.reply(apiResponse); // Répondre avec la réponse de l'API
+    } catch (error) {
+        console.error(error);
+        await message.reply("⚠️ Une erreur est survenue lors de la récupération des données.");
     }
-
-    console.warn('No matching command found.');
 }
 
 export default {

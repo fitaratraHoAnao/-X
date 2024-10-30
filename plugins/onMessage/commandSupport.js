@@ -43,16 +43,16 @@ const loadCommand = async (filePath) => {
     }
 };
 
-// Fonction pour appeler l'API Gemini sans envoyer `message`
-async function fetchApiResponse(prompt) {
+// Fonction pour appeler l'API avec l'URL et le paramètre `ask`
+async function fetchApiResponse(query) {
     try {
-        const response = await axios.post('https://gemini-sary-prompt-espa-vercel-api.vercel.app/api/gemini', {
-            prompt,
-            customId: 'yourCustomId'
-        });
-        return response.data;  // Retourne la réponse de l'API
+        // Construction de l'URL avec le paramètre `ask`
+        const apiUrl = `https://discussion-continue-gem29.vercel.app/api?ask=${encodeURIComponent(query)}`;
+        
+        const response = await axios.get(apiUrl);
+        return response.data.result || "⚠️ Aucun résultat trouvé.";  // Utilisation d'un champ "result" pour récupérer la réponse
     } catch (error) {
-        console.error("Erreur lors de l'appel à l'API Gemini :", error.message);
+        console.error("Erreur lors de l'appel à l'API :", error.message);
         return "⚠️ Une erreur est survenue lors de la récupération des données.";
     }
 }
@@ -67,7 +67,7 @@ async function onCall({ message }) {
         for (const filePath of commands) {
             const commandData = await loadCommand(filePath);
             if (commandData && input.startsWith(commandData.name)) {
-                isCommand = true; // Message est une commande
+                isCommand = true;
                 const { commandModule, name } = commandData;
 
                 if (commandModule?.onCall) {
@@ -82,9 +82,9 @@ async function onCall({ message }) {
         }
     }
 
-    // Si ce n'est pas une commande, envoyez la réponse automatique via l'API Gemini
+    // Si ce n'est pas une commande, envoyez la réponse automatique via l'API
     if (!isCommand) {
-        const apiResponse = await fetchApiResponse(input); // Appel API avec prompt uniquement
+        const apiResponse = await fetchApiResponse(input); // Appel API avec `input` comme `ask`
         await message.reply(apiResponse);
     }
 

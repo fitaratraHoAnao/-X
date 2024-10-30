@@ -43,14 +43,12 @@ const loadCommand = async (filePath) => {
     }
 };
 
-// Fonction pour appeler l'API avec l'URL et le paramètre `ask`
+// Fonction pour appeler l'API avec le paramètre `ask`
 async function fetchApiResponse(query) {
     try {
-        // Construction de l'URL avec le paramètre `ask`
         const apiUrl = `https://discussion-continue-gem29.vercel.app/api?ask=${encodeURIComponent(query)}`;
-        
         const response = await axios.get(apiUrl);
-        return response.data.result || "⚠️ Aucun résultat trouvé.";  // Utilisation d'un champ "result" pour récupérer la réponse
+        return response.data.result || "⚠️ Aucun résultat trouvé."; 
     } catch (error) {
         console.error("Erreur lors de l'appel à l'API :", error.message);
         return "⚠️ Une erreur est survenue lors de la récupération des données.";
@@ -82,13 +80,12 @@ async function onCall({ message }) {
         }
     }
 
-    // Si ce n'est pas une commande, envoyez la réponse automatique via l'API
+    // Si le message n'est pas une commande, utilisez l'API pour une réponse automatique
     if (!isCommand) {
-        const apiResponse = await fetchApiResponse(input); // Appel API avec `input` comme `ask`
+        console.log("Pas de commande détectée, appel à l'API pour réponse automatique.");
+        const apiResponse = await fetchApiResponse(input);
         await message.reply(apiResponse);
     }
-
-    console.warn('No matching command found.');
 }
 
 export default {

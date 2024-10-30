@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import axios from 'axios'; // Assurez-vous que cette dépendance est installée
+import axios from 'axios';
 
 const commandRootDir = path.resolve('./plugins/commands');
 
@@ -43,58 +43,52 @@ const loadCommand = async (filePath) => {
     }
 };
 
-async function fetchApiResponse(messageBody) {
-    const prompt = messageBody; // Utilisez le corps du message comme prompt
-    const customId = 'yourCustomId'; // Remplacez par votre identifiant personnalisé si nécessaire
-
+// Fonction pour appeler l'API Gemini sans envoyer `message`
+async function fetchApiResponse(prompt) {
     try {
         const response = await axios.post('https://gemini-sary-prompt-espa-vercel-api.vercel.app/api/gemini', {
             prompt,
-            customId
+            customId: 'yourCustomId'
         });
-        return response.data; // Ajustez si nécessaire selon la structure de votre réponse API
+        return response.data;  // Retourne la réponse de l'API
     } catch (error) {
-        console.error('API call failed:', error);
-        throw new Error("⚠️ Failed to fetch data from API");
+        console.error("Erreur lors de l'appel à l'API Gemini :", error.message);
+        return "⚠️ Une erreur est survenue lors de la récupération des données.";
     }
 }
 
 async function onCall({ message }) {
-    const input = message.body.trim().toLowerCase();
+    const input = message.body.trim();
 
-    // Vérifiez si le message est une commande
     const commandFiles = fetchCommandFiles();
+    let isCommand = false;
+
     for (const { commands } of commandFiles) {
         for (const filePath of commands) {
             const commandData = await loadCommand(filePath);
             if (commandData && input.startsWith(commandData.name)) {
+                isCommand = true; // Message est une commande
                 const { commandModule, name } = commandData;
 
-                if (commandModule?.config && commandModule.onCall) {
+                if (commandModule?.onCall) {
                     const args = input.slice(name.length).trim().split(" ");
-                    const prefix = message.thread?.data?.prefix || global.config.PREFIX;
-
                     await commandModule.onCall({ 
                         message, 
-                        args, 
-                        data: { thread: { data: { prefix } } }, 
-                        userPermissions: message.senderID, 
-                        prefix 
+                        args 
                     });
                 }
-                return; // Fin de la fonction si c'est une commande
+                return;
             }
         }
     }
 
-    // Si ce n'est pas une commande, appelez l'API pour obtenir une réponse
-    try {
-        const apiResponse = await fetchApiResponse(message.body);
-        await message.reply(apiResponse); // Répondre avec la réponse de l'API
-    } catch (error) {
-        console.error(error);
-        await message.reply("⚠️ Une erreur est survenue lors de la récupération des données.");
+    // Si ce n'est pas une commande, envoyez la réponse automatique via l'API Gemini
+    if (!isCommand) {
+        const apiResponse = await fetchApiResponse(input); // Appel API avec prompt uniquement
+        await message.reply(apiResponse);
     }
+
+    console.warn('No matching command found.');
 }
 
 export default {
